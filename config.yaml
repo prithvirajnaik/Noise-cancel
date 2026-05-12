@@ -1,0 +1,14 @@
+samplerate: 16000        # 🔥 IMPORTANT (Meet-friendly + low latency)
+frame_ms: 20
+calib_sec: 1.5           # slightly longer = better noise profile
+
+highpass_hz: 80
+
+noise_beta: 0.7          # less aggressive (prevents voice damage)
+noise_floor: 0.05        # avoids robotic artifacts
+
+ema_alpha: 0.98          # slower noise tracking = more stable
+gain_smooth: 0.9         # smoother transitions
+
+device_in: 1
+device_out: 5
