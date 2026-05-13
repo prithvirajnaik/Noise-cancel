@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Isolator</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="manifest" href="/static/manifest.json">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard">
+
+        <!-- Top Bar -->
+        <header class="topbar">
+            <div class="brand">
+                <span class="logo">🎙️</span>
+                <h1>Voice Isolator</h1>
+            </div>
+            <div class="header-right">
+                <p id="system-status" class="connection-text">Waiting for connection...</p>
+                <div class="status-pill">
+                    <span class="status-dot" id="status-dot"></span>
+                    <span id="status-badge" class="badge idle">Idle</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Row 1: Controls + Profile -->
+        <div class="row">
+            <section class="card card-wide">
+                <h2>Control Panel</h2>
+                <div class="monitors">
+                    <div class="monitor">
+                        <div class="monitor-label">
+                            <span>Input Level</span>
+                            <span class="tag">MIC</span>
+                        </div>
+                        <div class="bar-track"><div id="bar-in" class="bar-fill bar-blue"></div></div>
+                    </div>
+                    <div class="monitor">
+                        <div class="monitor-label">
+                            <span>Isolated Output</span>
+                            <span class="tag">CLEAN</span>
+                        </div>
+                        <div class="bar-track"><div id="bar-out" class="bar-fill bar-green"></div></div>
+                    </div>
+                    <div class="monitor">
+                        <div class="monitor-label">
+                            <span>Voice Match</span>
+                            <span class="tag">AI</span>
+                        </div>
+                        <div class="bar-track"><div id="bar-sim" class="bar-fill bar-violet"></div></div>
+                    </div>
+                </div>
+                <div class="gain-control">
+                    <label for="gain-slider">Output Gain</label>
+                    <div class="gain-row">
+                        <input type="range" id="gain-slider" min="1" max="8" step="0.5" value="3">
+                        <span id="gain-value" class="gain-label">3.0x</span>
+                    </div>
+                </div>
+                <div class="gain-control">
+                    <label for="threshold-slider">Sensitivity (higher = stricter)</label>
+                    <div class="gain-row">
+                        <input type="range" id="threshold-slider" min="0.10" max="0.70" step="0.05" value="0.35">
+                        <span id="threshold-value" class="gain-label">0.35</span>
+                    </div>
+                </div>
+                <div class="btn-row">
+                    <button id="btn-start" class="btn btn-start">▶ Start</button>
+                    <button id="btn-stop" class="btn btn-stop" disabled>■ Stop</button>
+                </div>
+            </section>
+
+            <section class="card card-narrow">
+                <h2>Voice Profile</h2>
+                <p id="enroll-status" class="profile-status">Checking...</p>
+                <p class="hint">Managed via <code>enroll_from_file.py</code></p>
+            </section>
+        </div>
+
+        <!-- Row 2: Device Settings -->
+        <div class="row">
+            <section class="card card-full">
+                <h2>Device Settings</h2>
+                <div class="device-row">
+                    <div class="device-field">
+                        <label for="input-device">Microphone</label>
+                        <select id="input-device"></select>
+                    </div>
+                    <div class="device-field">
+                        <label for="output-device">Output (Virtual Cable)</label>
+                        <select id="output-device"></select>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+    </div>
+
+    <!-- Hidden element needed by app.js -->
+    <button id="btn-enroll" style="display:none"></button>
+
+    <script src="/static/app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/sw.js');
+            });
+        }
+    </script>
+</body>
+</html>

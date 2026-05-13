@@ -1,124 +1,64 @@
-# Active Noise Cancelling (Real-Time Mic Noise Suppression)
+# Voice Isolator Operating Guide
 
-> Low-latency, real-time microphone noise suppression in Python using spectral subtraction + adaptive noise tracking and 50% overlap-add (OLA). Works cross-platform with PortAudio via `sounddevice`.
+Welcome to the Voice Isolator! This tool uses advanced AI to learn your voice profile and actively strip out background noise and other voices, ensuring that your chat apps only pick up *you*. 
 
-https://github.com/SoheilGtex
-
----
-
-## ✨ Features
-
-- **Real-time** mic noise suppression (20 ms frames, 50% overlap).
-- **Adaptive noise estimate** using exponential moving average (EMA).
-- **Spectral subtraction + Wiener-style gain**, smoothed per band.
-- **High-pass filter** (optional) to reduce rumble / hum.
-- **Calibration step** (1–2 s) to capture baseline ambient noise.
-- **Low latency** (frame = 20 ms, hop = 10 ms).
-- **Pure Python + NumPy/SciPy**. No heavyweight ML runtime required.
-
-> This is **noise suppression** (post-filtering of mic input), not feedforward/feedback “anti-noise” (phase-inversion) for headphones.
+Follow this guide to get everything configured and running perfectly.
 
 ---
 
-## 📦 Install
+## 1. Prerequisites (Virtual Audio Cable)
 
-```bash
-git clone https://github.com/SoheilGtex/active-noise-cancelling.git
-cd active-noise-cancelling
-python -m venv .venv && source .venv/bin/activate  # (Linux/macOS)
-# .venv\Scripts\activate                            # (Windows)
-pip install -r requirements.txt
-```
-## Dependencies
+To bridge the clean, isolated audio from this app into your communication software (like Discord, Google Meet, or Zoom), you need a "Virtual Audio Cable." 
 
-sounddevice (PortAudio binding)
+**Important:** The app cannot directly inject audio into Discord. It routes the cleaned audio to a virtual output, which Discord then uses as a virtual microphone.
 
-numpy
-
-scipy
-
-pyyaml (for reading config.yaml, optional)
-
-Windows: if PortAudio devices are not listed, update your audio drivers or install WASAPI loopback support (typically not needed).
-Linux: ensure your user is in audio group and PulseAudio/PipeWire is running.
-macOS: grant microphone permission to the terminal/IDE.
-
-##  ▶️ Run
-
-Quick start (defaults are fine):
-
-```python main.py```
-
-
-Useful options
-
-python main.py \
-  --samplerate 16000 \
-  --frame_ms 20 \
-  --calib_sec 1.0 \
-  --device_in default \
-  --device_out default \
-  --highpass 80
-
-
---samplerate : 16000 or 48000 are common.
-
---frame_ms : 20 ms frame (10 ms hop with 50% overlap).
-
---calib_sec : initial ambient-noise calibration duration (seconds).
-
---highpass : cut below N Hz (0 to disable).
-
-Press Ctrl+C to stop.
-
-## ⚙️ How it works (DSP)
-
-Framing & Windowing
-Signal is split into frames (e.g., 20 ms) with 50% overlap and Hann analysis/synthesis windows (perfect reconstruction with OLA).
-
-Noise Spectrum Estimation (EMA)
-Magnitude spectrum of noise is tracked with an exponential moving average. During low-energy segments it adapts faster.
-
-Spectral Subtraction + Gain Smoothing
-We estimate clean magnitude per bin: |X|_clean = max(|X| - β·|N|, floor·|N|).
-Then we compute a Wiener-like gain and smooth it over time to avoid musical noise.
-
-High-Pass
-Optional IIR HPF removes rumble.
-
-OLA Synthesis
-Inverse FFT → window → overlap-add. The output chunk each hop is sent to the soundcard with minimal latency.
-
-## 📁 Config
-
-config.yaml (optional; args override file):
-
-samplerate: 16000
-frame_ms: 20
-calib_sec: 1.0
-highpass_hz: 80
-noise_beta: 1.0
-noise_floor: 0.02
-ema_alpha: 0.96
-gain_smooth: 0.8
-device_in: default
-device_out: default
-
-## 🧪 Benchmark notes
-
-Latency ≈ frame_ms (20 ms) because hop is 10 ms and OLA buffering is 1 frame.
-
-CPU < 10% on mid-range laptops at 16 kHz mono.
-
-## 📜 License
-
-MIT
-
-## 🙌 Acknowledgements
-
-sounddevice (PortAudio) for reliable cross-platform I/O.
-
-Classic spectral subtraction literature and Wiener filtering techniques for single-channel speech enhancement.
-
+1. Download **VB-Audio Virtual Cable** from [their official website](https://vb-audio.com/Cable/).
+2. Extract the downloaded ZIP file and run the installer (make sure to run it as Administrator).
+3. Restart your computer if the installer prompts you to do so.
 
 ---
+
+## 2. Dashboard Setup
+
+Once the app is running and you have the dashboard open in your browser, configure your devices:
+
+### Device Settings (Bottom Right Card)
+1. **Microphone (Input):** Select your actual physical microphone (e.g., "Headset Mic" or "Blue Yeti").
+2. **Output (Virtual Cable):** Select **CABLE Input (VB-Audio Virtual Cable)**. 
+
+### Voice Profile Enrollment (Middle Card)
+Before the AI can isolate your voice, it needs to know what you sound like.
+1. Click the **Start Enrollment** button.
+2. The system will prompt you to speak continuously for **5 seconds**.
+3. Talk normally—read a paragraph, describe your day, or just count. 
+4. Once completed, the status will change to **✅ Voice Profile Loaded**. 
+
+**Tip:** Ensure you are in a relatively quiet environment when enrolling so the AI learns a clean baseline of your voice.
+
+---
+
+## 3. Operating the Engine
+
+Now that your devices are routed and your voice is enrolled, you can start the noise cancellation engine.
+
+### Starting Isolation
+1. In the **Control Panel** (Left Card), click **Start Isolation**.
+2. The Topbar status will change to **Running** (Green).
+
+### Monitoring Your Audio
+While the engine is running, you can monitor its performance in real-time:
+- **Input Level (Mic):** Shows the raw volume coming into your physical microphone (including background noise).
+- **Isolated Output (Clean):** Shows the volume of the audio being sent to your chat app. If someone else is talking in the background, this bar should remain low while the Input bar spikes.
+- **Voice Match Confidence (AI):** Shows how confident the AI is that the current sound is *your* voice. High confidence means your audio is passing through cleanly.
+
+---
+
+## 4. Connecting to Chat Apps (Discord, Zoom, Meet)
+
+Finally, configure your communication app to use the cleaned audio.
+
+1. Open the Audio/Voice settings in your target app (Discord, Google Meet, Zoom, etc.).
+2. Set your **Microphone (Input Device)** to **CABLE Output (VB-Audio Virtual Cable)**.
+3. Leave your **Speaker (Output Device)** as your normal headphones/speakers.
+
+**You're all set!** Your chat app is now listening to the Voice Isolator instead of your raw microphone. Turn on a vacuum cleaner or have someone talk behind you—they won't be heard!
