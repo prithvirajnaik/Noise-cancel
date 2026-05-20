@@ -8,11 +8,12 @@ A real-time voice isolation system that uses AI (ECAPA-TDNN speaker verification
 ## Architecture
 
 ```
-Browser (Dashboard UI)
+Browser (Premium Dashboard)
     |
     | WebSocket (JSON messages)
     v
 FastAPI Server (app.py)
+    |--- Serves React build (frontend/dist)
     |
     v
 AudioProcessor (core_audio/audio_stream.py)
@@ -42,12 +43,16 @@ Active-Noise-Cancelling/
 │   ├── audio_stream.py       # Real-time audio processing engine
 │   └── voice_isolation.py    # ECAPA-TDNN speaker verification & multi-embedding enrollment
 │
-├── web/
-│   ├── index.html            # Dashboard UI (light theme)
-│   ├── style.css             # Dashboard styling
-│   ├── app.js                # Frontend logic (WebSocket, sliders, buttons)
-│   ├── manifest.json         # PWA manifest
-│   └── sw.js                 # Service worker for PWA
+├── frontend/                 # Modern React Frontend (Vite + Tailwind)
+│   ├── src/                  # Components, Pages, Hooks
+│   ├── public/               # Static assets
+│   ├── tailwind.config.js    # Premium dark theme config
+│   └── index.html            # Main entry
+│
+├── web/                      # Legacy Vanilla Dashboard (Deprecating)
+│   ├── index.html
+│   ├── style.css
+│   └── app.js
 │
 ├── pretrained_models/        # Auto-downloaded ECAPA-TDNN weights (speechbrain)
 │   └── spkrec-ecapa-voxceleb/
@@ -95,21 +100,24 @@ Active-Noise-Cancelling/
 - Kept in the project for potential future use
 
 ### `web/index.html` — Dashboard Layout
-- Clean, light-themed UI with Inter font
+- Modern, premium UI structure using Inter font
+- Incorporates layout elements designed for glassmorphism and animated backgrounds
 - Two-row flexbox layout:
-  - Row 1: Control Panel (monitors + gain/sensitivity sliders + start/stop) + Voice Profile card
-  - Row 2: Device Settings (mic + output dropdowns)
+  - Row 1: Control Panel (glowing LED-style monitors + customized sliders + start/stop) + Voice Profile card
+  - Row 2: Device Settings (custom styled select dropdowns)
 - No enrollment button (profile managed via CLI)
 
 ### `web/app.js` — Frontend Logic
 - Connects to backend via WebSocket with auto-reconnect
 - Populates device dropdowns from backend device list
-- Updates level bars, status badge, and profile status at 10fps
+- Updates level bars with smooth animations, status badge, and profile status at 10fps
 - Sends `start`, `stop`, `set_gain`, `set_threshold` commands
 
 ### `web/style.css` — Styling
-- Light theme with white cards on `#f4f5f7` background
-- No gradients, clean borders, minimal aesthetic
+- High-fidelity dark mode with deep slate/navy backgrounds and vibrant neon accents
+- Implements glassmorphism (`backdrop-filter`) for cards and floating elements
+- Dynamic background elements (animated gradients/glows) and micro-animations on interactive elements
+- Custom-styled range sliders and glowing audio monitors
 - Responsive: stacks to single column on mobile
 
 ---

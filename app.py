@@ -2,6 +2,7 @@ import os
 import json
 import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import sounddevice as sd
@@ -9,6 +10,14 @@ import sounddevice as sd
 from core_audio.audio_stream import AudioProcessor
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Make sure the web directory exists
 os.makedirs("web", exist_ok=True)
@@ -54,6 +63,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     "rms_in": float(audio_processor.rms_in),
                     "rms_out": float(audio_processor.rms_out),
                     "sim": float(audio_processor.current_sim),
+                    "prox": float(audio_processor.current_prox),
                     "is_ready": audio_processor.isolator.is_ready,
                     "is_enrolled": len(audio_processor.isolator.target_embeddings) > 0
                 })
@@ -78,6 +88,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 audio_processor.output_gain = float(msg["value"])
             elif msg["action"] == "set_threshold":
                 audio_processor.isolator.threshold = float(msg["value"])
+            elif msg["action"] == "set_proximity_threshold":
+                audio_processor.prox_threshold = float(msg["value"])
                 
     except WebSocketDisconnect:
         status_task.cancel()

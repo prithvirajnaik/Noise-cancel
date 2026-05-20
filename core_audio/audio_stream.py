@@ -4,6 +4,7 @@ import threading
 import time
 
 from core_audio.voice_isolation import VoiceIsolator
+from core_audio.proximity import ProximityFilter
 from dsp import NoiseSuppressor
 
 class AudioProcessor:
@@ -17,6 +18,7 @@ class AudioProcessor:
         self.running = False
         
         self.isolator = VoiceIsolator()
+        self.prox_filter = ProximityFilter(sr=sr)
         self.ns = NoiseSuppressor(sr=sr, frame_ms=frame_ms)
         
         # Verification window (1.2s) — needs to be long enough for the AI to hear phonemes
@@ -27,6 +29,8 @@ class AudioProcessor:
         
         # Start NON-permissive — audio must be verified before passing through
         self.current_sim = 0.0
+        self.current_prox = 0.0
+        self.prox_threshold = 0.0 # Default off/low, tunable via UI
         self.enrolling = False
         self.enroll_buffer = []
         
@@ -46,7 +50,15 @@ class AudioProcessor:
         self.status_msg = "Idle"
 
     def get_devices(self):
-        return [d['name'] for d in sd.query_devices()]
+        devices = sd.query_devices()
+        inputs = []
+        outputs = []
+        for i, d in enumerate(devices):
+            if d['max_input_channels'] > 0:
+                inputs.append({'index': i, 'name': d['name']})
+            if d['max_output_channels'] > 0:
+                outputs.append({'index': i, 'name': d['name']})
+        return {'inputs': inputs, 'outputs': outputs}
 
     def set_enrolling(self, val: bool):
         self.enrolling = val
@@ -57,6 +69,14 @@ class AudioProcessor:
     def _verify_in_background(self, audio_snapshot, sr):
         """Run speaker verification in a background thread so it never blocks audio."""
         try:
+            # 1. Proximity Check
+            prox_score = self.prox_filter.get_proximity_score(audio_snapshot)
+            if prox_score > self.current_prox:
+                self.current_prox = self.current_prox * 0.5 + prox_score * 0.5
+            else:
+                self.current_prox = self.current_prox * 0.8 + prox_score * 0.2
+
+            # 2. Voice Verification
             sim = self.isolator.verify_chunk(audio_snapshot, sr)
             
             # Asymmetric smoothing:
@@ -68,8 +88,8 @@ class AudioProcessor:
                 self.current_sim = self.current_sim * 0.8 + sim * 0.2
             
             # Debug: print to terminal so user can see what scores they get
-            action = "PASS" if self.current_sim >= self.isolator.threshold else "MUTE"
-            print(f"[Voice] raw={sim:.3f} smoothed={self.current_sim:.3f} thresh={self.isolator.threshold:.2f} -> {action}")
+            action = "PASS" if (self.current_sim >= self.isolator.threshold and self.current_prox >= self.prox_threshold) else "MUTE"
+            print(f"[Voice] sim={self.current_sim:.3f} prox={self.current_prox:.2f} -> {action}")
         except Exception as e:
             print(f"Verification error: {e}")
         finally:
@@ -82,8 +102,8 @@ class AudioProcessor:
         self.running = True
         self.status_msg = "Running"
         self._frame_count = 0
-        # If enrolled, start non-permissive. If not enrolled, let audio through.
         self.current_sim = 0.5 if self.isolator.target_embeddings else 1.0
+        self.current_prox = 1.0
         
         # Load model async if not loaded
         if not self.isolator.is_ready:
@@ -136,8 +156,8 @@ class AudioProcessor:
                     threading.Thread(target=self._verify_in_background, args=(snapshot, self.sr)).start()
                 
 
-                # Hard mute: if not your voice, silence it completely
-                if self.current_sim < self.isolator.threshold:
+                # Hard mute: if not your voice, or if it is too far away
+                if self.current_sim < self.isolator.threshold or self.current_prox < self.prox_threshold:
                     y = y * 0.0
                     
             # Amplify and clip to prevent distortion

@@ -52,6 +52,13 @@
                         </div>
                         <div class="bar-track"><div id="bar-sim" class="bar-fill bar-violet"></div></div>
                     </div>
+                    <div class="monitor">
+                        <div class="monitor-label">
+                            <span>Proximity Effect</span>
+                            <span class="tag">BASS</span>
+                        </div>
+                        <div class="bar-track"><div id="bar-prox" class="bar-fill bar-orange" style="background-color: #f97316;"></div></div>
+                    </div>
                 </div>
                 <div class="gain-control">
                     <label for="gain-slider">Output Gain</label>
@@ -61,10 +68,17 @@
                     </div>
                 </div>
                 <div class="gain-control">
-                    <label for="threshold-slider">Sensitivity (higher = stricter)</label>
+                    <label for="threshold-slider">AI Sensitivity (higher = stricter)</label>
                     <div class="gain-row">
                         <input type="range" id="threshold-slider" min="0.10" max="0.70" step="0.05" value="0.35">
                         <span id="threshold-value" class="gain-label">0.35</span>
+                    </div>
+                </div>
+                <div class="gain-control">
+                    <label for="prox-slider">Proximity Filter (reject distant voices)</label>
+                    <div class="gain-row">
+                        <input type="range" id="prox-slider" min="0.0" max="3.0" step="0.1" value="0.0">
+                        <span id="prox-value" class="gain-label">OFF</span>
                     </div>
                 </div>
                 <div class="btn-row">
@@ -102,7 +116,7 @@
     <!-- Hidden element needed by app.js -->
     <button id="btn-enroll" style="display:none"></button>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=2"></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {

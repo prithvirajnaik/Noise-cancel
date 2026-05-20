@@ -13,7 +13,8 @@ const el = {
     enrollStatus: document.getElementById('enroll-status'),
     barIn: document.getElementById('bar-in'),
     barOut: document.getElementById('bar-out'),
-    barSim: document.getElementById('bar-sim')
+    barSim: document.getElementById('bar-sim'),
+    barProx: document.getElementById('bar-prox')
 };
 
 function connect() {
@@ -91,6 +92,9 @@ function updateUI(status) {
     
     let simPct = Math.max(0, (status.sim - 0.2) / 0.8 * 100);
     el.barSim.style.width = Math.min(simPct, 100) + '%';
+
+    let proxPct = Math.min(status.prox / 3.0 * 100, 100);
+    el.barProx.style.width = Math.max(0, proxPct) + '%';
 }
 
 // Actions
@@ -127,6 +131,18 @@ threshSlider.addEventListener('input', () => {
     threshValue.textContent = val.toFixed(2);
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ action: 'set_threshold', value: val }));
+    }
+});
+
+// Proximity slider
+const proxSlider = document.getElementById('prox-slider');
+const proxValue = document.getElementById('prox-value');
+
+proxSlider.addEventListener('input', () => {
+    const val = parseFloat(proxSlider.value);
+    proxValue.textContent = val === 0 ? "OFF" : val.toFixed(1);
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ action: 'set_proximity_threshold', value: val }));
     }
 });
 
