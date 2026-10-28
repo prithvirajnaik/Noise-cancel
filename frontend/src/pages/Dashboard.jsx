@@ -4,7 +4,7 @@ import { Play, Square, Settings2, Activity, ChevronDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function Dashboard() {
-  const { status, devices, defaultDevices, params, sendCommand } = useVoiceIsolatorWs('ws://localhost:8000/ws');
+  const { status, devices, defaultDevices, params, sendCommand } = useVoiceIsolatorWs();
   
   const [deviceIn, setDeviceIn] = useState(defaultDevices.in);
   const [deviceOut, setDeviceOut] = useState(defaultDevices.out);
@@ -232,6 +232,45 @@ export default function Dashboard() {
               </div>
 
               <div className="pt-6 border-t border-border space-y-3">
+                <label className="block text-xs font-medium text-text-secondary uppercase tracking-wider">Mode</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'noise', label: 'Noise only' },
+                    { id: 'extract', label: 'My voice only' },
+                    { id: 'both', label: 'Both' },
+                  ].map(m => (
+                    <button
+                      key={m.id}
+                      onClick={() => sendCommand({ action: "set_mode", value: m.id })}
+                      disabled={m.id !== 'noise' && !status.enrolled}
+                      className={`px-2 py-2 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-40 ${
+                        status.mode === m.id
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border bg-background-secondary text-text-secondary hover:border-primary'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => sendCommand({ action: "enroll" })}
+                  disabled={!status.running || !status.model_loaded || status.enrolling}
+                  className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold border border-border bg-background-secondary text-text-primary hover:border-primary disabled:opacity-40 transition-colors"
+                >
+                  {status.enrolling
+                    ? 'Recording... talk normally, alone'
+                    : status.enrolled ? 'Re-enroll my voice (10 s)' : 'Enroll my voice (10 s)'}
+                </button>
+                <div className="flex justify-between text-xs font-mono text-text-secondary">
+                  <span>{!status.model_loaded ? 'Model loading...' : status.enrolled ? 'Voice enrolled' : 'Not enrolled'}</span>
+                  {status.running && (
+                    <span>Load {Math.round(status.rtf * 100)}% ·{Math.round(status.latency_ms)} ms</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-4 space-y-3">
                 <button
                   onClick={() => sendCommand({ action: "calibrate" })}
                   disabled={!status.running || status.calibrating}

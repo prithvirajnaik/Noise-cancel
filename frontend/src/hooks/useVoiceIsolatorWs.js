@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-export function useVoiceIsolatorWs(url = 'ws://localhost:8000/ws') {
+// Served by the Python backend: talk to the same host/port. Vite dev server (5173): backend on 8000.
+const DEFAULT_WS_URL = window.location.port === '5173'
+  ? 'ws://localhost:8000/ws'
+  : `ws://${window.location.host}/ws`;
+
+export function useVoiceIsolatorWs(url = DEFAULT_WS_URL) {
   const [status, setStatus] = useState({
     connected: false,
     running: false,
@@ -13,6 +18,12 @@ export function useVoiceIsolatorWs(url = 'ws://localhost:8000/ws') {
     is_enrolled: false,
     calibrating: false,
     enabled: true,
+    mode: "noise",
+    model_loaded: false,
+    enrolled: false,
+    enrolling: false,
+    rtf: 0,
+    latency_ms: 0,
   });
   const [params, setParams] = useState({ beta: 0.7, smooth: 0.9, gain: 1.0, enabled: true });
   
@@ -45,7 +56,13 @@ export function useVoiceIsolatorWs(url = 'ws://localhost:8000/ws') {
           is_ready: data.is_ready,
           is_enrolled: data.is_enrolled,
           calibrating: data.calibrating,
-          enabled: data.enabled
+          enabled: data.enabled,
+          mode: data.mode,
+          model_loaded: data.model_loaded,
+          enrolled: data.enrolled,
+          enrolling: data.enrolling,
+          rtf: data.rtf,
+          latency_ms: data.latency_ms
         }));
       }
     };

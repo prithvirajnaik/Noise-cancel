@@ -13,3 +13,8 @@ __pycache__/
 .idea/
 
 .harsha/
+# Speaker extraction (personal voice data / test outputs)
+enrollment.wav
+extract_out/
+engine_out.wav
+engine_enroll.wav
