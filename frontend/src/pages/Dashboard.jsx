@@ -1,11 +1,28 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useVoiceIsolatorWs } from '../hooks/useVoiceIsolatorWs';
-import { Play, Square, Settings2, Activity, ChevronDown } from 'lucide-react';
-import { motion } from 'framer-motion';
+import {
+  Play, Square, Activity, SlidersHorizontal, Mic, Volume2, Layers, RefreshCw, Settings,
+  ShieldCheck, ShieldOff, ChartNoAxesColumn, Waves, Gauge, AudioLines, Zap, Cpu,
+} from 'lucide-react';
+import ThemeToggle from '../components/ThemeToggle';
+import IconBadge from '../components/dashboard/IconBadge';
+import { TONES } from '../components/dashboard/tones';
+import StatTile, { LevelMeter } from '../components/dashboard/StatTile';
+import ParamSlider from '../components/dashboard/ParamSlider';
+import DeviceSelect from '../components/dashboard/DeviceSelect';
+import Waveform from '../components/dashboard/Waveform';
+
+const MODES = [
+  { id: 'noise', label: 'Noise only' },
+  { id: 'extract', label: 'My voice only' },
+  { id: 'both', label: 'Both' },
+];
+
+const secondaryBtn = 'flex w-full items-center justify-center gap-2.5 rounded-xl border-[1.5px] px-4 py-2.5 short:py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40';
 
 export default function Dashboard() {
   const { status, devices, defaultDevices, params, sendCommand } = useVoiceIsolatorWs();
-  
+
   const [deviceIn, setDeviceIn] = useState(defaultDevices.in);
   const [deviceOut, setDeviceOut] = useState(defaultDevices.out);
   const [gain, setGain] = useState(1.0);
@@ -17,112 +34,6 @@ export default function Dashboard() {
     setBeta(params.beta);
     setSmooth(params.smooth);
   }, [params]);
-
-  const canvasRef = useRef(null);
-  const waveHistoryInRef = useRef(new Array(100).fill(0));
-  const waveHistoryOutRef = useRef(new Array(100).fill(0));
-
-  // Simple canvas animation loop for visualization
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    let animationFrameId;
-
-    const render = () => {
-      // Fix for High DPI screens
-      const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width * window.devicePixelRatio;
-      canvas.height = rect.height * window.devicePixelRatio;
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-
-      ctx.clearRect(0, 0, rect.width, rect.height);
-      
-      const w = rect.width;
-      const h = rect.height;
-      
-      // Update histories (we still keep them for smoothing, but will only use the latest value for the symmetric view)
-      const updateHistory = (ref, target) => {
-        ref.current.shift();
-        const last = ref.current[ref.current.length - 1];
-        ref.current.push(last * 0.8 + (target * 4) * 0.2);
-      };
-
-      updateHistory(waveHistoryInRef, status.rms_in);
-      updateHistory(waveHistoryOutRef, status.rms_out);
-      
-      // Draw baseline
-      ctx.strokeStyle = '#3b426140';
-      ctx.lineWidth = 1;
-      
-      ctx.beginPath();
-      ctx.moveTo(w * 0.1, h * 0.5); ctx.lineTo(w * 0.9, h * 0.5);
-      ctx.stroke();
-
-      // Label
-      ctx.fillStyle = '#7d8590';
-      ctx.font = '10px Inter font-bold';
-      ctx.textAlign = 'center';
-      ctx.fillText('CLEANED OUTPUT', w / 2, h * 0.5 - 40);
-
-      // Draw the symmetric "Siri-style" waveform
-      const drawSymmetricWave = (amp, color, opacity, scale, weight) => {
-        ctx.beginPath();
-        ctx.lineWidth = weight;
-        ctx.strokeStyle = color;
-        ctx.globalAlpha = opacity;
-        ctx.lineJoin = 'round';
-        ctx.lineCap = 'round';
-        
-        const segments = 80;
-        const centerX = w / 2;
-        const waveWidth = w * 0.7;
-        const step = waveWidth / segments;
-        const startX = centerX - waveWidth / 2;
-        const time = Date.now() * 0.008;
-        
-        for (let i = 0; i <= segments; i++) {
-          const x = startX + i * step;
-          // Gaussian-style envelope: 1 at middle, 0 at ends
-          const distFromCenter = Math.abs(i - segments / 2) / (segments / 2);
-          const envelope = Math.pow(Math.cos(distFromCenter * Math.PI / 2), 2);
-          
-          // Multi-frequency wave for complexity
-          const noise = (
-            Math.sin(i * 0.15 + time) * 0.5 + 
-            Math.sin(i * 0.3 - time * 0.5) * 0.3 + 
-            Math.sin(i * 0.05 + time * 1.5) * 0.2
-          );
-          
-          const y = h * 0.5 + (noise * amp * (h * 0.4) * scale * envelope);
-          
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-      };
-
-      const currentAmp = waveHistoryOutRef.current[waveHistoryOutRef.current.length - 1];
-
-      // Draw multiple layers for depth
-      ctx.shadowBlur = 15;
-      ctx.shadowColor = '#9ece6a';
-      drawSymmetricWave(currentAmp, '#9ece6a', 1.0, 1.0, 3);
-      
-      ctx.shadowBlur = 0;
-      drawSymmetricWave(currentAmp, '#7aa2f7', 0.4, 0.7, 1.5); // Fainter underlying tone
-      
-      ctx.globalAlpha = 1.0;
-
-      animationFrameId = window.requestAnimationFrame(render);
-    };
-
-    render();
-
-    return () => {
-      window.cancelAnimationFrame(animationFrameId);
-    };
-  }, [status]);
 
   useEffect(() => {
     if (defaultDevices.in !== undefined) setDeviceIn(defaultDevices.in);
@@ -137,213 +48,230 @@ export default function Dashboard() {
     sendCommand({ action: "stop" });
   };
 
+  // noise_server does not report mode / load / latency; those readouts show "—" there
+  const modeLabel = MODES.find(m => m.id === status.mode)?.label;
+  const hasLoad = status.running && Number.isFinite(status.rtf) && Number.isFinite(status.latency_ms);
+  const loadPct = hasLoad ? Math.round(status.rtf * 100) : 0;
+  const loadTone = loadPct < 70 ? 'success' : loadPct < 100 ? 'warning' : 'danger';
+  const busy = status.calibrating || status.enrolling;
+  const statusTone = !status.connected ? 'danger' : busy ? 'warning' : 'success';
+  const statusPill = {
+    success: 'border-success/30 bg-success-soft',
+    warning: 'border-warning/40 bg-warning-soft',
+    danger: 'border-danger/40 bg-danger-soft',
+  }[statusTone];
+
   return (
-    <div className="flex flex-col space-y-6 h-full">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-text-primary">Live Dashboard</h2>
-          <p className="text-sm text-text-secondary mt-1">Real-time audio processing and metrics</p>
+    <div className="flex flex-col gap-6 lg:h-full lg:min-h-0 lg:gap-5 short:gap-3">
+      {/* Header */}
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-4">
+          <IconBadge icon={Activity} size="lg" />
+          <div className="min-w-0">
+            <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">Live Dashboard</h1>
+            <p className="mt-0.5 text-sm text-muted">
+              <span className="font-semibold text-ink/80">Noise Suppressor</span> · Real-time audio processing and metrics
+            </p>
+          </div>
         </div>
-        
-        <div className="flex space-x-3">
-          <button 
+
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <button
             onClick={status.running ? handleStop : handleStart}
-            className={`px-6 py-2.5 rounded-lg font-semibold flex items-center space-x-2 transition-all shadow-lg ${
-              status.running 
-                ? 'bg-error/10 text-error hover:bg-error/20 border border-error/20 shadow-error/10' 
-                : 'bg-primary text-background hover:bg-primary/90 border border-primary/20 shadow-primary/20'
+            className={`flex h-12 items-center gap-2.5 rounded-2xl border-[1.5px] border-line px-6 font-bold text-white transition-all hover:brightness-105 active:translate-y-px ${
+              status.running
+                ? 'bg-danger shadow-[0_10px_24px_-12px_var(--danger)]'
+                : 'bg-primary shadow-[0_10px_24px_-12px_var(--primary)]'
             }`}
           >
             {status.running ? <Square size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
             <span>{status.running ? 'Stop Engine' : 'Start Engine'}</span>
           </button>
         </div>
-      </div>
+      </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-[400px]">
-        {/* Main Vis Area */}
-        <div className="lg:col-span-2 flex flex-col space-y-6">
-          <div className="glass rounded-xl border border-border/50 p-6 flex-1 flex flex-col h-full">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="font-semibold text-text-primary flex items-center">
-                <Activity className="mr-2 text-primary" size={18} />
-                Real-Time Analysis
-              </h3>
-              <div className="flex items-center space-x-2 text-xs font-mono glass px-3 py-1 rounded-full">
-                <span className={`w-2 h-2 rounded-full ${status.connected ? 'bg-success animate-pulse' : 'bg-error'}`} />
-                <span className="text-text-secondary">{status.status_msg}</span>
+      <div className="grid grid-cols-1 gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-3 lg:gap-5">
+        {/* Real-time analysis */}
+        <section className="card flex min-w-0 flex-col gap-5 p-5 sm:p-6 lg:col-span-2 lg:min-h-0 short:gap-3 short:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-xl font-bold">
+              Real-Time Analysis
+            </h2>
+            <div
+              role="status"
+              aria-live="polite"
+              className={`flex max-w-full items-center gap-2 rounded-full border-[1.5px] px-4 py-2 text-sm font-medium text-ink ${statusPill}`}
+            >
+              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${TONES[statusTone].fill} ${status.connected ? 'animate-pulse' : ''}`} />
+              <span className="truncate">{status.status_msg}</span>
+            </div>
+          </div>
+
+          <div className="relative min-h-75 flex-1 overflow-hidden lg:min-h-0 rounded-2xl border border-hairline bg-sunken">
+            <Waveform level={status.rms_out} />
+            <p className="absolute inset-x-0 bottom-4 text-center text-xs font-semibold tracking-[0.15em] text-muted">
+              CLEANED OUTPUT{modeLabel && <span className="font-medium tracking-normal"> ({modeLabel})</span>}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatTile icon={Mic} tone="success" label="Input Level">
+              <LevelMeter level={status.rms_in * 5} tone="success" label="Input level" />
+            </StatTile>
+            <StatTile icon={AudioLines} tone="primary" label="Output Level">
+              <LevelMeter level={status.rms_out * 5} tone="primary" label="Output level" />
+            </StatTile>
+            <StatTile icon={Zap} tone="violet" label="Latency">
+              <p className="text-2xl font-bold leading-6">{hasLoad ? `${Math.round(status.latency_ms)} ms` : '—'}</p>
+            </StatTile>
+            <StatTile icon={Cpu} tone="warning" label="Engine Load">
+              <div className="flex items-center gap-3">
+                <p className="text-2xl font-bold leading-6">{hasLoad ? `${loadPct}%` : '—'}</p>
+                {hasLoad && (
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-hairline">
+                    <div className={`h-full rounded-full ${TONES[loadTone].fill}`} style={{ width: `${Math.min(loadPct, 100)}%` }} />
+                  </div>
+                )}
+              </div>
+            </StatTile>
+          </div>
+        </section>
+
+        {/* Parameters */}
+        <aside className="card no-scrollbar min-w-0 p-5 sm:p-6 lg:flex lg:min-h-0 lg:flex-col lg:overflow-y-auto short:p-4">
+          <h2 className="mb-5 flex items-center gap-3 text-xl font-bold short:mb-3">
+            <SlidersHorizontal className="text-primary" size={22} />
+            Parameters
+          </h2>
+
+          {/* On desktop the sections spread out to fill the card's height */}
+          <div className="space-y-4 lg:flex lg:flex-1 lg:flex-col lg:justify-between lg:gap-3 lg:space-y-0">
+            {/* Side by side on short screens to save height */}
+            <div className="space-y-4 short:grid short:grid-cols-2 short:gap-3 short:space-y-0">
+              <DeviceSelect
+              id="input-device"
+              icon={Mic}
+              label="Input Device"
+              value={deviceIn}
+              options={devices.inputs}
+              onChange={(e) => setDeviceIn(parseInt(e.target.value))}
+              disabled={status.running}
+            />
+              <DeviceSelect
+              id="output-device"
+              icon={Volume2}
+              label="Output Device"
+              value={deviceOut}
+              options={devices.outputs}
+              onChange={(e) => setDeviceOut(parseInt(e.target.value))}
+              disabled={status.running}
+            />
+            </div>
+
+            <div className="space-y-3 border-t border-hairline pt-4 short:space-y-2 short:pt-3">
+              <p className="section-label"><Layers size={16} />Mode</p>
+              <div className="grid grid-cols-3 gap-2">
+                {MODES.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => sendCommand({ action: "set_mode", value: m.id })}
+                    disabled={m.id !== 'noise' && !status.enrolled}
+                    aria-pressed={status.mode === m.id}
+                    className={`rounded-xl border-[1.5px] px-2 py-2.5 text-sm short:py-2 font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                      status.mode === m.id
+                        ? 'border-primary bg-primary-soft text-primary'
+                        : 'border-hairline bg-surface text-ink hover:border-primary'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => sendCommand({ action: "enroll" })}
+                disabled={!status.running || !status.model_loaded || status.enrolling}
+                className={`${secondaryBtn} border-primary bg-primary-soft text-ink hover:brightness-[0.98]`}
+              >
+                <RefreshCw size={18} className={`text-primary ${status.enrolling ? 'animate-spin' : ''}`} />
+                {status.enrolling
+                  ? 'Recording... talk normally, alone'
+                  : status.enrolled ? 'Re-enroll my voice (10 s)' : 'Enroll my voice (10 s)'}
+              </button>
+              <div className="flex items-center justify-between gap-2 text-sm">
+                <span className="flex items-center gap-2 text-ink">
+                  <span className={`h-2.5 w-2.5 rounded-full ${status.enrolled ? 'bg-success' : !status.model_loaded ? 'bg-warning' : 'bg-muted'}`} />
+                  {!status.model_loaded ? 'Model loading...' : status.enrolled ? 'Voice enrolled' : 'Not enrolled'}
+                </span>
+                {hasLoad && (
+                  <span className="font-mono text-xs text-muted">Load {loadPct}% · {Math.round(status.latency_ms)} ms</span>
+                )}
               </div>
             </div>
-            
-            <div className="flex-1 w-full bg-background-secondary/30 rounded-lg border border-border/30 overflow-hidden relative shadow-inner">
-              <canvas 
-                ref={canvasRef} 
-                className="absolute inset-0 w-full h-full"
+
+            <div className="space-y-3 border-t border-hairline pt-4 short:space-y-2 short:pt-3">
+              <button
+                onClick={() => sendCommand({ action: "calibrate" })}
+                disabled={!status.running || status.calibrating}
+                className={`${secondaryBtn} border-line bg-surface text-ink hover:bg-sunken`}
+              >
+                <Settings size={18} className={status.calibrating ? 'animate-spin' : ''} />
+                {status.calibrating ? 'Calibrating... stay quiet' : 'Recalibrate Noise (stay quiet)'}
+              </button>
+              <button
+                onClick={() => sendCommand({ action: "set_enabled", value: !status.enabled })}
+                aria-pressed={status.enabled}
+                className={`${secondaryBtn} ${
+                  status.enabled ? 'border-success/50 bg-success-soft text-ink' : 'border-danger/50 bg-danger-soft text-ink'
+                }`}
+              >
+                {status.enabled
+                  ? <ShieldCheck size={18} className="text-success" />
+                  : <ShieldOff size={18} className="text-danger" />}
+                {status.enabled ? 'Noise Suppression: ON' : 'Noise Suppression: OFF (raw mic)'}
+              </button>
+            </div>
+
+            <div className="space-y-5 border-t border-hairline pt-4 short:space-y-3 short:pt-3">
+              <ParamSlider
+                id="noise-strength"
+                icon={ChartNoAxesColumn}
+                label="Noise Strength"
+                min={0.3} max={1.2} step={0.05}
+                value={beta}
+                format={v => v.toFixed(2)}
+                onChange={(val) => {
+                  setBeta(val);
+                  sendCommand({ action: "set_beta", value: val });
+                }}
+              />
+              <ParamSlider
+                id="smoothness"
+                icon={Waves}
+                label="Smoothness"
+                min={0.6} max={0.99} step={0.01}
+                value={smooth}
+                format={v => v.toFixed(2)}
+                onChange={(val) => {
+                  setSmooth(val);
+                  sendCommand({ action: "set_smooth", value: val });
+                }}
+              />
+              <ParamSlider
+                id="output-gain"
+                icon={Gauge}
+                label="Output Gain"
+                min={0.5} max={4} step={0.1}
+                value={gain}
+                format={v => `${v.toFixed(1)}x`}
+                onChange={(val) => {
+                  setGain(val);
+                  sendCommand({ action: "set_gain", value: val });
+                }}
               />
             </div>
           </div>
-        </div>
-
-        {/* Controls Panel */}
-        <div className="col-span-1 flex flex-col space-y-6">
-          <div className="glass rounded-xl border border-border/50 p-6 h-full">
-            <h3 className="font-semibold text-text-primary flex items-center mb-6">
-              <Settings2 className="mr-2 text-primary" size={18} />
-              Parameters
-            </h3>
-            
-            <div className="space-y-6">
-              <div>
-                <label className="block text-xs font-medium text-text-secondary uppercase tracking-wider mb-2">Input Device</label>
-                <div className="relative">
-                  <select 
-                    className="w-full bg-background-secondary border border-border rounded-lg px-3 py-2.5 text-sm text-text-primary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors appearance-none pr-10"
-                    value={deviceIn}
-                    onChange={(e) => setDeviceIn(parseInt(e.target.value))}
-                    disabled={status.running}
-                  >
-                    {devices.inputs?.map(d => (
-                      <option key={d.index} value={d.index}>{d.name}</option>
-                    ))}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-text-secondary">
-                    <ChevronDown size={16} />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-text-secondary uppercase tracking-wider mb-2">Output Device</label>
-                <div className="relative">
-                  <select 
-                    className="w-full bg-background-secondary border border-border rounded-lg px-3 py-2.5 text-sm text-text-primary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors appearance-none pr-10"
-                    value={deviceOut}
-                    onChange={(e) => setDeviceOut(parseInt(e.target.value))}
-                    disabled={status.running}
-                  >
-                    {devices.outputs?.map(d => (
-                      <option key={d.index} value={d.index}>{d.name}</option>
-                    ))}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-text-secondary">
-                    <ChevronDown size={16} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-6 border-t border-border space-y-3">
-                <label className="block text-xs font-medium text-text-secondary uppercase tracking-wider">Mode</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: 'noise', label: 'Noise only' },
-                    { id: 'extract', label: 'My voice only' },
-                    { id: 'both', label: 'Both' },
-                  ].map(m => (
-                    <button
-                      key={m.id}
-                      onClick={() => sendCommand({ action: "set_mode", value: m.id })}
-                      disabled={m.id !== 'noise' && !status.enrolled}
-                      className={`px-2 py-2 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-40 ${
-                        status.mode === m.id
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border bg-background-secondary text-text-secondary hover:border-primary'
-                      }`}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  onClick={() => sendCommand({ action: "enroll" })}
-                  disabled={!status.running || !status.model_loaded || status.enrolling}
-                  className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold border border-border bg-background-secondary text-text-primary hover:border-primary disabled:opacity-40 transition-colors"
-                >
-                  {status.enrolling
-                    ? 'Recording... talk normally, alone'
-                    : status.enrolled ? 'Re-enroll my voice (10 s)' : 'Enroll my voice (10 s)'}
-                </button>
-                <div className="flex justify-between text-xs font-mono text-text-secondary">
-                  <span>{!status.model_loaded ? 'Model loading...' : status.enrolled ? 'Voice enrolled' : 'Not enrolled'}</span>
-                  {status.running && (
-                    <span>Load {Math.round(status.rtf * 100)}% ·{Math.round(status.latency_ms)} ms</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="pt-4 space-y-3">
-                <button
-                  onClick={() => sendCommand({ action: "calibrate" })}
-                  disabled={!status.running || status.calibrating}
-                  className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold border border-border bg-background-secondary text-text-primary hover:border-primary disabled:opacity-40 transition-colors"
-                >
-                  {status.calibrating ? 'Calibrating... stay quiet' : 'Recalibrate Noise (stay quiet)'}
-                </button>
-                <button
-                  onClick={() => sendCommand({ action: "set_enabled", value: !status.enabled })}
-                  className={`w-full px-4 py-2.5 rounded-lg text-sm font-semibold border transition-colors ${
-                    status.enabled ? 'border-success/30 bg-success/10 text-success' : 'border-error/30 bg-error/10 text-error'
-                  }`}
-                >
-                  {status.enabled ? 'Noise Suppression: ON' : 'Noise Suppression: OFF (raw mic)'}
-                </button>
-              </div>
-
-              <div className="pt-4">
-                <div className="flex justify-between items-center mb-4">
-                  <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">Noise Strength</label>
-                  <span className="text-xs font-mono text-primary bg-primary/10 px-2 py-0.5 rounded">{beta.toFixed(2)}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.3" max="1.2" step="0.05"
-                  value={beta}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value);
-                    setBeta(val);
-                    sendCommand({ action: "set_beta", value: val });
-                  }}
-                  className="w-full accent-primary h-2 bg-background-secondary rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
-
-              <div className="pt-4">
-                <div className="flex justify-between items-center mb-4">
-                  <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">Smoothness</label>
-                  <span className="text-xs font-mono text-primary bg-primary/10 px-2 py-0.5 rounded">{smooth.toFixed(2)}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.6" max="0.99" step="0.01"
-                  value={smooth}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value);
-                    setSmooth(val);
-                    sendCommand({ action: "set_smooth", value: val });
-                  }}
-                  className="w-full accent-primary h-2 bg-background-secondary rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
-
-              <div className="pt-4">
-                <div className="flex justify-between items-center mb-4">
-                  <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">Output Gain</label>
-                  <span className="text-xs font-mono text-primary bg-primary/10 px-2 py-0.5 rounded">{gain.toFixed(1)}x</span>
-                </div>
-                <input 
-                  type="range" 
-                  min="0.5" max="4" step="0.1" 
-                  value={gain}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value);
-                    setGain(val);
-                    sendCommand({ action: "set_gain", value: val });
-                  }}
-                  className="w-full accent-primary h-2 bg-background-secondary rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+        </aside>
       </div>
     </div>
   );
