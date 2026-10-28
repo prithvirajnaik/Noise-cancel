@@ -4,12 +4,19 @@ import { Play, Square, Settings2, Activity, ChevronDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function Dashboard() {
-  const { status, devices, defaultDevices, sendCommand } = useVoiceIsolatorWs('ws://localhost:8000/ws');
+  const { status, devices, defaultDevices, params, sendCommand } = useVoiceIsolatorWs('ws://localhost:8000/ws');
   
   const [deviceIn, setDeviceIn] = useState(defaultDevices.in);
   const [deviceOut, setDeviceOut] = useState(defaultDevices.out);
-  const [gain, setGain] = useState(3.0);
-  const [threshold, setThreshold] = useState(0.55);
+  const [gain, setGain] = useState(1.0);
+  const [beta, setBeta] = useState(0.7);
+  const [smooth, setSmooth] = useState(0.9);
+
+  useEffect(() => {
+    setGain(params.gain);
+    setBeta(params.beta);
+    setSmooth(params.smooth);
+  }, [params]);
 
   const canvasRef = useRef(null);
   const waveHistoryInRef = useRef(new Array(100).fill(0));
@@ -56,7 +63,7 @@ export default function Dashboard() {
       ctx.fillStyle = '#7d8590';
       ctx.font = '10px Inter font-bold';
       ctx.textAlign = 'center';
-      ctx.fillText('ISOLATED OUTPUT (CLEAN)', w / 2, h * 0.5 - 40);
+      ctx.fillText('CLEANED OUTPUT', w / 2, h * 0.5 - 40);
 
       // Draw the symmetric "Siri-style" waveform
       const drawSymmetricWave = (amp, color, opacity, scale, weight) => {
@@ -115,7 +122,7 @@ export default function Dashboard() {
     return () => {
       window.cancelAnimationFrame(animationFrameId);
     };
-  }, [status, threshold]);
+  }, [status]);
 
   useEffect(() => {
     if (defaultDevices.in !== undefined) setDeviceIn(defaultDevices.in);
@@ -224,19 +231,55 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="pt-6 border-t border-border">
+              <div className="pt-6 border-t border-border space-y-3">
+                <button
+                  onClick={() => sendCommand({ action: "calibrate" })}
+                  disabled={!status.running || status.calibrating}
+                  className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold border border-border bg-background-secondary text-text-primary hover:border-primary disabled:opacity-40 transition-colors"
+                >
+                  {status.calibrating ? 'Calibrating... stay quiet' : 'Recalibrate Noise (stay quiet)'}
+                </button>
+                <button
+                  onClick={() => sendCommand({ action: "set_enabled", value: !status.enabled })}
+                  className={`w-full px-4 py-2.5 rounded-lg text-sm font-semibold border transition-colors ${
+                    status.enabled ? 'border-success/30 bg-success/10 text-success' : 'border-error/30 bg-error/10 text-error'
+                  }`}
+                >
+                  {status.enabled ? 'Noise Suppression: ON' : 'Noise Suppression: OFF (raw mic)'}
+                </button>
+              </div>
+
+              <div className="pt-4">
                 <div className="flex justify-between items-center mb-4">
-                  <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">AI Sensitivity</label>
-                  <span className="text-xs font-mono text-primary bg-primary/10 px-2 py-0.5 rounded">{threshold.toFixed(2)}</span>
+                  <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">Noise Strength</label>
+                  <span className="text-xs font-mono text-primary bg-primary/10 px-2 py-0.5 rounded">{beta.toFixed(2)}</span>
                 </div>
-                <input 
-                  type="range" 
-                  min="0.1" max="0.9" step="0.05" 
-                  value={threshold}
+                <input
+                  type="range"
+                  min="0.3" max="1.2" step="0.05"
+                  value={beta}
                   onChange={(e) => {
                     const val = parseFloat(e.target.value);
-                    setThreshold(val);
-                    sendCommand({ action: "set_threshold", value: val });
+                    setBeta(val);
+                    sendCommand({ action: "set_beta", value: val });
+                  }}
+                  className="w-full accent-primary h-2 bg-background-secondary rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+
+              <div className="pt-4">
+                <div className="flex justify-between items-center mb-4">
+                  <label className="text-xs font-medium text-text-secondary uppercase tracking-wider">Smoothness</label>
+                  <span className="text-xs font-mono text-primary bg-primary/10 px-2 py-0.5 rounded">{smooth.toFixed(2)}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.6" max="0.99" step="0.01"
+                  value={smooth}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setSmooth(val);
+                    sendCommand({ action: "set_smooth", value: val });
                   }}
                   className="w-full accent-primary h-2 bg-background-secondary rounded-lg appearance-none cursor-pointer"
                 />
@@ -249,7 +292,7 @@ export default function Dashboard() {
                 </div>
                 <input 
                   type="range" 
-                  min="1" max="8" step="0.5" 
+                  min="0.5" max="4" step="0.1" 
                   value={gain}
                   onChange={(e) => {
                     const val = parseFloat(e.target.value);

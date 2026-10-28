@@ -11,7 +11,10 @@ export function useVoiceIsolatorWs(url = 'ws://localhost:8000/ws') {
     prox: 0,
     is_ready: false,
     is_enrolled: false,
+    calibrating: false,
+    enabled: true,
   });
+  const [params, setParams] = useState({ beta: 0.7, smooth: 0.9, gain: 1.0, enabled: true });
   
   const [devices, setDevices] = useState({ inputs: [], outputs: [] });
   const [defaultDevices, setDefaultDevices] = useState({ in: 0, out: 0 });
@@ -29,6 +32,7 @@ export function useVoiceIsolatorWs(url = 'ws://localhost:8000/ws') {
       if (data.type === 'init') {
         setDevices(data.devices);
         setDefaultDevices({ in: data.default_in, out: data.default_out });
+        if (data.params) setParams(data.params);
       } else if (data.type === 'status') {
         setStatus(s => ({
           ...s,
@@ -39,7 +43,9 @@ export function useVoiceIsolatorWs(url = 'ws://localhost:8000/ws') {
           sim: data.sim,
           prox: data.prox,
           is_ready: data.is_ready,
-          is_enrolled: data.is_enrolled
+          is_enrolled: data.is_enrolled,
+          calibrating: data.calibrating,
+          enabled: data.enabled
         }));
       }
     };
@@ -63,5 +69,5 @@ export function useVoiceIsolatorWs(url = 'ws://localhost:8000/ws') {
     }
   };
 
-  return { status, devices, defaultDevices, sendCommand };
+  return { status, devices, defaultDevices, params, sendCommand };
 }
